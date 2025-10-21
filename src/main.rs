@@ -3,16 +3,16 @@ use log::{info, error};
 use std::fs;
 use std::path::Path;
 
-mod mqtt_adapter;
+mod smart_adapter;
 
 #[tokio::main]
 async fn main() {
     // 初始化日志
     // 注意: rumqttd 库使用 ERROR 级别记录内部消息流跟踪 (如 "[>] incoming")
     // 这是库的设计问题,不是真正的错误。这些消息表示正常的消息路由流程。
-    // 如果想要清晰的日志,可以添加过滤: "rumqttd::router::routing=warn"
+    // 设置环境变量 RUST_LOG=info,rumqttd::router::routing=off 可以完全隐藏这些日志
     env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info")
+        env_logger::Env::default().default_filter_or("info,rumqttd::router::routing=off,rumqttd::server::broker=info")
     ).init();
     
     // 从配置文件加载配置
@@ -21,16 +21,20 @@ async fn main() {
     info!("Starting MQTT Broker...");
     info!("Configuration loaded from: config.toml");
     info!("Listening on:");
-    info!("  - TCP: 0.0.0.0:1882 (MQTT 3.1.0 - with adapter)");
-    info!("  - TCP: 0.0.0.0:1883 (MQTT 3.1.1)");
-    info!("  - TCP: 0.0.0.0:1884 (MQTT 5.0)");
+    info!("  - TCP: 0.0.0.0:1882 (MQTT 3.1.0 - auto-upgraded to 3.1.1)");
+    info!("  - TCP: 0.0.0.0:1883 (MQTT 3.1.1 / 5.0 auto-detected)");
     info!("  - WebSocket: 0.0.0.0:8080 (MQTT 3.1.1)");
     info!("  - Console: 0.0.0.0:3030 (Management)");
+    info!("");
+    info!("MQTT 3.1.0 Adapter:");
+    info!("  - Port 1882 accepts MQTT 3.1.0 clients");
+    info!("  - Automatically upgrades to 3.1.1 and forwards to port 1883");
     
-    // 启动 MQTT 3.1.0 适配器(异步)
-    // 监听 1882 端口,转发到 1883 端口(MQTT 3.1.1)
+    // 启动 MQTT 3.1.0 适配器 (异步)
+    // 监听 1882 端口,专门处理 MQTT 3.1.0 客户端
+    // 自动转换为 3.1.1 并转发到 1883
     tokio::spawn(async {
-        if let Err(e) = mqtt_adapter::start_mqtt31_adapter(1882, 1883).await {
+        if let Err(e) = smart_adapter::start_smart_mqtt_adapter(1882, 1883).await {
             error!("MQTT 3.1.0 adapter failed: {}", e);
         }
     });
@@ -80,27 +84,13 @@ max_segment_count = 10
 max_connections = 10000
 max_outgoing_packet_count = 200
 
-# TCP 监听器 - MQTT 3.1.1
+# TCP 监听器 - MQTT 3.1.1 和 5.0 (rumqttd 自动识别)
 [v4.1]
-name = "tcp-v4"
+name = "tcp-mqtt"
 listen = "0.0.0.0:1883"
 next_connection_delay_ms = 1
     
 [v4.1.connections]
-connection_timeout_ms = 60000
-max_client_id_len = 256
-max_connections = 10000
-max_payload_size = 268435455
-max_inflight_count = 100
-throttle_delay_ms = 0
-
-# TCP 监听器 - MQTT 5.0
-[v5.1]
-name = "tcp-v5"
-listen = "0.0.0.0:1884"
-next_connection_delay_ms = 1
-
-[v5.1.connections]
 connection_timeout_ms = 60000
 max_client_id_len = 256
 max_connections = 10000
