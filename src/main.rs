@@ -3,7 +3,10 @@ use log::{info, error};
 use std::fs;
 use std::path::Path;
 
-fn main() {
+mod mqtt_adapter;
+
+#[tokio::main]
+async fn main() {
     // 初始化日志
     // 注意: rumqttd 库使用 ERROR 级别记录内部消息流跟踪 (如 "[>] incoming")
     // 这是库的设计问题,不是真正的错误。这些消息表示正常的消息路由流程。
@@ -18,10 +21,19 @@ fn main() {
     info!("Starting MQTT Broker...");
     info!("Configuration loaded from: config.toml");
     info!("Listening on:");
+    info!("  - TCP: 0.0.0.0:1882 (MQTT 3.1.0 - with adapter)");
     info!("  - TCP: 0.0.0.0:1883 (MQTT 3.1.1)");
     info!("  - TCP: 0.0.0.0:1884 (MQTT 5.0)");
     info!("  - WebSocket: 0.0.0.0:8080 (MQTT 3.1.1)");
     info!("  - Console: 0.0.0.0:3030 (Management)");
+    
+    // 启动 MQTT 3.1.0 适配器(异步)
+    // 监听 1882 端口,转发到 1883 端口(MQTT 3.1.1)
+    tokio::spawn(async {
+        if let Err(e) = mqtt_adapter::start_mqtt31_adapter(1882, 1883).await {
+            error!("MQTT 3.1.0 adapter failed: {}", e);
+        }
+    });
     
     // 启动 Broker (这是一个阻塞调用)
     let mut broker = Broker::new(config);

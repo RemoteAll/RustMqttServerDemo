@@ -4,6 +4,7 @@
 
 ## 功能特性
 
+- ✅ **MQTT 3.1.0** 支持 (端口 1882 - 通过协议适配器)
 - ✅ **MQTT 3.1.1** 支持 (端口 1883)
 - ✅ **MQTT 5.0** 支持 (端口 1884)
 - ✅ **WebSocket** 支持 (端口 8080)
@@ -11,6 +12,7 @@
 - ✅ **可配置文件** 支持
 - ✅ **高并发** 支持 (默认 10000 连接)
 - ✅ **多协议版本** 同时运行
+- ✅ **自动协议升级** MQTT 3.1.0 → 3.1.1
 
 ## 快速开始
 
@@ -34,6 +36,15 @@ cargo run
 ### 3. 测试连接
 
 #### 使用 mosquitto 客户端测试
+
+**MQTT 3.1.0:**
+```bash
+# 订阅主题
+mosquitto_sub -h localhost -p 1882 -t "test/topic" -V mqttv31
+
+# 发布消息
+mosquitto_pub -h localhost -p 1882 -t "test/topic" -m "Hello MQTT 3.1.0!" -V mqttv31
+```
 
 **MQTT 3.1.1:**
 ```bash
@@ -71,6 +82,7 @@ mosquitto_sub -h localhost -p 8080 -t "test/topic" -V mqttv311
 
 ### 端口配置
 
+- **1882**: MQTT 3.1.0 协议 (通过适配器自动升级到 3.1.1)
 - **1883**: MQTT 3.1.1 协议
 - **1884**: MQTT 5.0 协议
 - **8080**: WebSocket (MQTT 3.1.1)
@@ -157,11 +169,17 @@ $env:RUST_LOG="warn,rustmqttserverdemo=info,rumqttd::server::broker=info"
 
 ## 协议支持说明
 
-**注意**: 此 broker 不支持 MQTT 3.1.0 (已废弃)
+### MQTT 3.1.0 支持
 
-- MQTT 3.1.0 于 2010 年发布,已被 3.1.1 取代
-- 建议升级设备固件到 MQTT 3.1.1 或 5.0
-- 大多数标注为 3.1.0 的设备实际上可以使用 3.1.1 连接
+✅ **现已支持 MQTT 3.1.0!**
+
+本 broker 通过内置的**协议适配器**支持 MQTT 3.1.0:
+- 监听端口: **1882**
+- 工作原理: 自动将 MQTT 3.1.0 (MQIsdp) 协议升级为 MQTT 3.1.1
+- 完全透明: 客户端无需修改,就像连接原生 3.1.0 broker 一样
+- 性能: 零拷贝转发,延迟极低
+
+旧设备可以直接连接到端口 1882 使用 MQTT 3.1.0 协议!
 
 ## License
 
